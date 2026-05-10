@@ -1,0 +1,36 @@
+#!/usr/sbin/nft -f
+
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority 0; policy drop;
+
+        iif lo accept
+        ct state established,related accept
+        tcp dport 22 accept
+        icmp type echo-request accept
+    }
+
+    chain output {
+        type filter hook output priority 0; policy accept;
+
+        # Kafka en vm-data
+        ip daddr 172.31.45.191 tcp dport 9092 accept
+
+        # RabbitMQ en vm-data
+        ip daddr 172.31.45.191 tcp dport 5672 accept
+
+        # Auth server en vm-auth
+        ip daddr 172.31.43.93 tcp dport 5000 accept
+
+        # DNS y actualizaciones
+        udp dport 53 accept
+        tcp dport 53 accept
+        tcp dport 443 accept
+        tcp dport 80 accept
+        tcp dport 22 accept
+
+        drop
+    }
+}
