@@ -9,11 +9,9 @@ jwt = JWTManager(app)
 def login():
     username = request.json.get("username")
     password = request.json.get("password")
-    
     if username == "admin" and password == "password123":
         token = create_access_token(identity=username)
         return jsonify(access_token=token), 200
-    
     return jsonify({"msg": "Error de autenticación"}), 401
 
 if __name__ == '__main__':

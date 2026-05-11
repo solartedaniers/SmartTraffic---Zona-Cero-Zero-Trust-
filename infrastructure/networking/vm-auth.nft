@@ -1,3 +1,4 @@
+sudo tee /etc/nftables.conf << 'EOF'
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -10,11 +11,11 @@ table inet filter {
         ct state established,related accept
         tcp dport 22 accept
 
-        # Auth server - acepta de todas las VMs
-        ip saddr 172.31.32.228 tcp dport 5000 accept
-        ip saddr 172.31.45.191 tcp dport 5000 accept
-        ip saddr 172.31.46.43  tcp dport 5000 accept
-        ip saddr 172.31.39.177 tcp dport 5000 accept
+        # Auth Service accesible desde las demás VMs
+        ip saddr 172.31.46.69 tcp dport 5000 accept   # vm-ingest (IP nueva)
+        ip saddr 172.31.45.191 tcp dport 5000 accept  # vm-data
+        ip saddr 172.31.46.43  tcp dport 5000 accept  # vm-processor
+        ip saddr 172.31.39.177 tcp dport 5000 accept  # vm-app
 
         icmp type echo-request accept
     }
@@ -27,3 +28,7 @@ table inet filter {
         type filter hook forward priority 0; policy drop;
     }
 }
+EOF
+
+sudo nft -f /etc/nftables.conf
+sudo systemctl restart nftables
