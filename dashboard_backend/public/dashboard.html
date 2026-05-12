@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartTraffic - Zero Trust Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0a0e1a;
+      color: #e0e6f0;
+      min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(135deg, #1a1f35, #0d1b2a);
+      padding: 20px 30px;
+      border-bottom: 2px solid #00d4ff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 { color: #00d4ff; font-size: 1.6rem; }
+    #connection-status {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .connected { background: #00ff8844; color: #00ff88; border: 1px solid #00ff88; }
+    .disconnected { background: #ff444444; color: #ff4444; border: 1px solid #ff4444; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+      padding: 30px;
+    }
+    .zone-card {
+      background: #141929;
+      border: 1px solid #2a3050;
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .zone-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+    }
+    .zone-card.FLUIDO::before { background: #00ff88; }
+    .zone-card.MODERADO::before { background: #ffcc00; }
+    .zone-card.CONGESTIONADO::before { background: #ff8800; }
+    .zone-card.BLOQUEADO::before { background: #ff0044; }
+
+    .zone-name { font-size: 1.3rem; font-weight: bold; color: #7eb3ff; margin-bottom: 10px; }
+    .zone-status {
+      font-size: 1rem;
+      font-weight: bold;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+    .FLUIDO { color: #00ff88; }
+    .MODERADO { color: #ffcc00; }
+    .CONGESTIONADO { color: #ff8800; }
+    .BLOQUEADO { color: #ff0044; }
+
+    .zone-vehicles { font-size: 0.9rem; color: #8899bb; margin-bottom: 6px; }
+    .zone-time { font-size: 0.75rem; color: #4a5568; }
+
+    #log {
+      background: #0d1117;
+      border: 1px solid #2a3050;
+      border-radius: 8px;
+      margin: 0 30px 30px;
+      padding: 15px;
+      height: 180px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 0.82rem;
+    }
+    .log-entry { color: #4caf50; margin-bottom: 4px; }
+    .log-entry.alert { color: #ff8800; }
+    .log-entry.blocked { color: #ff0044; }
+
+    h2 { padding: 20px 30px 0; color: #7eb3ff; font-size: 1.1rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🚦 SmartTraffic — Zero Trust Dashboard</h1>
+  <div id="connection-status" class="disconnected">● Desconectado</div>
+</header>
+
+<div class="grid" id="zones-grid">
+  <!-- Las zonas se crean dinámicamente -->
+</div>
+
+<h2>📋 Log de Eventos</h2>
+<div id="log"></div>
+
+<script>
+  const statusEl = document.getElementById('connection-status');
+  const grid = document.getElementById('zones-grid');
+  const logEl = document.getElementById('log');
+  const zoneCards = {};
+
+  const ws = new WebSocket(`ws://${location.host}`);
+
+  ws.onopen = () => {
+    statusEl.textContent = '● Conectado';
+    statusEl.className = 'connected';
+    addLog('✅ Conectado al servidor WebSocket', '');
+  };
+
+  ws.onclose = () => {
+    statusEl.textContent = '● Desconectado';
+    statusEl.className = 'disconnected';
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    updateZone(data);
+    addLog(
+      `Zona ${data.zone_id}: ${data.status} — ${data.vehicles_count} vehículos`,
+      data.status
+    );
+  };
+
+  function updateZone(data) {
+    if (!zoneCards[data.zone_id]) {
+      const card = document.createElement('div');
+      card.className = `zone-card ${data.status}`;
+      card.id = `zone-${data.zone_id}`;
+      card.innerHTML = `
+        <div class="zone-name">📍 Zona ${data.zone_id}</div>
+        <div class="zone-status ${data.status}">${data.status}</div>
+        <div class="zone-vehicles">🚗 ${data.vehicles_count} vehículos</div>
+        <div class="zone-time">🕐 ${new Date(data.timestamp).toLocaleTimeString()}</div>
+      `;
+      grid.appendChild(card);
+      zoneCards[data.zone_id] = card;
+    } else {
+      const card = zoneCards[data.zone_id];
+      card.className = `zone-card ${data.status}`;
+      card.innerHTML = `
+        <div class="zone-name">📍 Zona ${data.zone_id}</div>
+        <div class="zone-status ${data.status}">${data.status}</div>
+        <div class="zone-vehicles">🚗 ${data.vehicles_count} vehículos</div>
+        <div class="zone-time">🕐 ${new Date(data.timestamp).toLocaleTimeString()}</div>
+      `;
+    }
+  }
+
+  function addLog(msg, status) {
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${status === 'BLOQUEADO' ? 'blocked' : status === 'CONGESTIONADO' ? 'alert' : ''}`;
+    entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    logEl.prepend(entry);
+    if (logEl.children.length > 50) logEl.removeChild(logEl.lastChild);
+  }
+</script>
+</body>
+</html>

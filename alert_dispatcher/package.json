@@ -1,0 +1,9 @@
+{
+  "name": "alert-dispatcher",
+  "version": "1.0.0",
+  "main": "dispatcher.js",
+  "dependencies": {
+    "amqplib": "^0.10.3",
+    "axios": "^1.6.2"
+  }
+}

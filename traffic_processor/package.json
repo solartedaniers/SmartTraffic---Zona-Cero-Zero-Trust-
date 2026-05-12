@@ -1,0 +1,10 @@
+{
+  "name": "traffic-processor",
+  "version": "1.0.0",
+  "main": "processor.js",
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "amqplib": "^0.10.3",
+    "axios": "^1.6.2"
+  }
+}
