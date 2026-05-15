@@ -261,6 +261,8 @@ Abre en el navegador: `http://<IP_PUBLICA_VM_APP>:3000`
 
 Deberías ver las 5 zonas (A, B, C, D, E) actualizándose en tiempo real.
 
+URL y de RabbitMQ: `http://<IP_PUBLICA_VM_DATA>:15672`
+
 ---
 
 ## 🔧 Comandos utilizados y su propósito
@@ -419,5 +421,139 @@ Verifica: 3 conexiones activas, 3 consumers, mensajes fluyendo.
 - El CLUSTER_ID de Kafka (`MkU3OEVBNTcwNTJENDM2Qk`) debe mantenerse igual si se recrea el contenedor para que Kafka reconozca su estado previo.
 
 ---
+
+
+
+
+
+
+
+
+
+
+## 1. Correr en Local
+ 
+El entorno local usa Docker Compose para levantar todos los servicios en una sola máquina.
+ 
+### Terminal 1 — Levantar el sistema completo
+ 
+```bash
+# Navegar a la carpeta del proyecto
+cd "~/Documents/Sexto Semestre/Sistemas Distribuidos/SmartTraffic---Zona-Cero-Zero-Trust-"
+ 
+# Construir imágenes y levantar todos los contenedores
+docker compose up --build
+```
+ 
+**Qué hace `docker compose up --build`:**
+- `up` levanta todos los servicios definidos en `docker-compose.yml`
+- `--build` fuerza la reconstrucción de las imágenes antes de levantar
+- Muestra los logs de todos los servicios en tiempo real
+### Terminal 2 — Verificar que todo está corriendo
+ 
+```bash
+# Ver contenedores activos
+docker ps
+ 
+# Ver logs de un servicio específico
+docker logs auth_server
+docker logs traffic_sensor
+docker logs traffic_processor
+docker logs dashboard_backend
+```
+ 
+### Terminal 1 — Detener el sistema
+ 
+```bash
+# Detener y eliminar contenedores y volúmenes
+docker compose down -v
+```
+ 
+**Qué hace `docker compose down -v`:**
+- `down` detiene y elimina los contenedores
+- `-v` elimina también los volúmenes (datos persistentes de Kafka, etc.)
+- Sin `-v` los datos de Kafka quedan guardados
+### Abrir el dashboard local
+ 
+```
+http://localhost:3000
+```
+ 
+---
+ 
+## 2. Construcción y Transferencia de Imágenes
+ 
+Este fue el proceso para llevar las imágenes Docker desde la PC local hasta cada VM de AWS.
+ 
+### Paso 1 — Construir las imágenes localmente
+ 
+```bash
+# Desde la carpeta del proyecto, construir todas las imágenes
+docker compose build
+```
+ 
+Esto genera las imágenes con el prefijo del nombre de la carpeta, por ejemplo:
+- `smarttraffic---zona-cero-zero-trust--auth_server`
+- `smarttraffic---zona-cero-zero-trust--traffic_sensor`
+- etc.
+### Paso 2 — Exportar imágenes a archivos .tar
+ 
+```bash
+# Exportar cada imagen a un archivo comprimido
+docker save smarttraffic---zona-cero-zero-trust--auth_server:latest -o auth_server.tar
+docker save smarttraffic---zona-cero-zero-trust--traffic_sensor:latest -o traffic_sensor.tar
+docker save smarttraffic---zona-cero-zero-trust--traffic_processor:latest -o traffic_processor.tar
+docker save smarttraffic---zona-cero-zero-trust--alert_dispatcher:latest -o alert_dispatcher.tar
+docker save smarttraffic---zona-cero-zero-trust--dashboard_backend:latest -o dashboard_backend.tar
+```
+ 
+**Qué hace `docker save`:**
+- Empaqueta una imagen Docker completa (con todas sus capas) en un archivo `.tar`
+- El archivo `.tar` puede transferirse a otra máquina e importarse allí
+- Es equivalente a "exportar" la imagen para usarla sin necesidad de Docker Hub
+### Paso 3 — Transferir archivos .tar a cada VM por SCP
+ 
+```bash
+# Transferir auth_server a vm-auth
+scp -i "llave-distribuidos.pem" auth_server.tar ubuntu@<IP_PUBLICA_VM_AUTH>:~
+ 
+# Transferir kafka y rabbitmq a vm-data (imágenes públicas, no necesitan tar)
+# kafka y rabbitmq se descargan directamente en la VM con docker pull
+ 
+# Transferir traffic_sensor a vm-ingest
+scp -i "llave-distribuidos.pem" traffic_sensor.tar ubuntu@<IP_PUBLICA_VM_INGEST>:~
+ 
+# Transferir traffic_processor a vm-core
+scp -i "llave-distribuidos.pem" traffic_processor.tar ubuntu@<IP_PUBLICA_VM_CORE>:~
+ 
+# Transferir alert_dispatcher y dashboard_backend a vm-app
+scp -i "llave-distribuidos.pem" alert_dispatcher.tar ubuntu@<IP_PUBLICA_VM_APP>:~
+scp -i "llave-distribuidos.pem" dashboard_backend.tar ubuntu@<IP_PUBLICA_VM_APP>:~
+```
+ 
+**Qué hace `scp`:**
+- `scp` = Secure Copy Protocol, copia archivos de forma segura por SSH
+- `-i "llave.pem"` especifica la llave privada para autenticarse
+- El formato es: `scp origen usuario@host:destino`
+- `:~` significa que el archivo va al directorio home del usuario en la VM
+### Paso 4 — Importar imágenes en cada VM
+ 
+```bash
+# Conectarse a la VM correspondiente
+ssh -i "llave-distribuidos.pem" ubuntu@<IP_PUBLICA_VM>
+ 
+# Importar la imagen desde el archivo tar
+sudo docker load -i auth_server.tar
+sudo docker load -i traffic_sensor.tar
+sudo docker load -i traffic_processor.tar
+sudo docker load -i alert_dispatcher.tar
+sudo docker load -i dashboard_backend.tar
+```
+ 
+**Qué hace `docker load`:**
+- Importa una imagen Docker desde un archivo `.tar`
+- Es el proceso inverso a `docker save`
+- Después de esto la imagen queda disponible localmente en la VM
+### Paso 5 — Ejecutar los contenedores en cada VM
 
 *Proyecto desarrollado para las materias de Sistemas Distribuidos y Sistemas Operativos — Grupo 12*
